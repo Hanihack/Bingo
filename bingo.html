@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bingo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap');
+        
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: #000000;
+            color: #ffffff;
+            touch-action: manipulation;
+            user-select: none;
+            overflow-x: hidden;
+        }
+
+        .bingo-cell {
+            aspect-ratio: 1 / 1;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            background-color: transparent;
+            border: 3px solid #ffffff;
+        }
+
+        .bingo-cell.marked {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            text-decoration: line-through;
+            border-color: #ffffff !important;
+        }
+
+        .bingo-letter {
+            opacity: 0.2;
+            transition: all 0.3s ease;
+            color: #ffffff;
+        }
+
+        .bingo-letter.active {
+            opacity: 1;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 1);
+            transform: scale(1.3);
+        }
+
+        .setup-cell-placed {
+            background-color: #ffffff;
+            border-color: #ffffff;
+            color: #000000;
+        }
+
+        input[type="text"] {
+            background: transparent;
+            border: 3px solid #ffffff;
+            color: white;
+            outline: none;
+            transition: border-color 0.3s;
+            font-size: 1.5rem;
+        }
+
+        input[type="text"]::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        @keyframes win-flash {
+            0% { background-color: #000; }
+            50% { background-color: #fff; }
+            100% { background-color: #000; }
+        }
+
+        .win-animate {
+            animation: win-flash 0.3s ease-out 2;
+        }
+
+        .watermark {
+            font-size: 20px;
+            letter-spacing: 0.4em;
+            color: #ffffff;
+            text-decoration: none;
+            font-weight: 800;
+            transition: transform 0.2s;
+            display: inline-block;
+        }
+        .watermark:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4">
+
+    <!-- GLOBAL WATERMARK (WHITE AND BIG) -->
+    <a href="https://www.instagram.com/hanii.mohd?igsh=eHJtc2R2N2thanB1" target="_blank" class="watermark mt-6 mb-10 uppercase">
+        BY HANII.MOHD
+    </a>
+
+    <!-- REGISTRATION SCREEN -->
+    <div id="registration-screen" class="w-full max-w-md mt-10">
+        <div class="text-center mb-14">
+            <h1 class="text-8xl font-black uppercase tracking-tighter mb-4">Bingo</h1>
+            <p class="text-white text-lg font-bold uppercase tracking-[0.5em]">2 PLAYER</p>
+        </div>
+        
+        <div class="space-y-8 mb-12">
+            <div>
+                <label class="block text-sm font-black text-white uppercase tracking-widest mb-3">Player 1</label>
+                <input type="text" id="p1-name-input" placeholder="NAME 1" class="w-full py-5 px-6 rounded-2xl font-black uppercase">
+            </div>
+            <div>
+                <label class="block text-sm font-black text-white uppercase tracking-widest mb-3">Player 2</label>
+                <input type="text" id="p2-name-input" placeholder="NAME 2" class="w-full py-5 px-6 rounded-2xl font-black uppercase">
+            </div>
+        </div>
+
+        <button onclick="startRegistration()" class="w-full py-6 bg-white text-black font-black rounded-3xl text-2xl hover:bg-gray-200 transition active:scale-95">
+            PROCEED
+        </button>
+    </div>
+
+    <!-- SETUP SCREEN -->
+    <div id="setup-screen" class="hidden w-full max-w-md mt-4">
+        <div class="text-center mb-8">
+            <h1 id="setup-title" class="text-5xl font-black uppercase tracking-tighter text-white">Setup</h1>
+            <p id="setup-subtitle" class="text-white text-base font-bold uppercase tracking-[0.3em] mt-3">Arrange Grid (1-25)</p>
+        </div>
+
+        <div id="setup-grid" class="grid grid-cols-5 gap-3 mb-8 p-3 rounded-2xl border-4 border-white"></div>
+
+        <div class="flex gap-4">
+            <button onclick="resetSetup()" class="flex-1 py-5 border-4 border-white text-white font-black rounded-2xl text-xl active:scale-95">RESET</button>
+            <button id="confirm-setup-btn" disabled onclick="confirmGrid()" class="flex-[2] py-5 bg-white text-black font-black rounded-2xl text-xl transition active:scale-95">
+                CONFIRM
+            </button>
+        </div>
+    </div>
+
+    <!-- TRANSITION SCREEN -->
+    <div id="transition-screen" class="hidden fixed inset-0 z-50 bg-black flex flex-col items-center justify-center p-8 text-center">
+        <div class="w-24 h-24 border-4 border-white rounded-full flex items-center justify-center mb-10">
+            <div class="w-12 h-12 bg-white rounded-full animate-pulse"></div>
+        </div>
+        <h2 id="transition-title" class="text-5xl font-black mb-4 uppercase tracking-tighter">Next</h2>
+        <p id="transition-desc" class="text-white text-xl mb-14 font-bold">Switch players now.</p>
+        <button onclick="proceedFromTransition()" class="w-full max-w-xs py-6 border-4 border-white text-white font-black rounded-3xl text-2xl hover:bg-white hover:text-black transition active:scale-95">
+            READY
+        </button>
+    </div>
+
+    <!-- GAME SCREEN -->
+    <div id="game-screen" class="hidden w-full max-w-md mt-2">
+        <div class="flex justify-center space-x-6 mb-12">
+            <span class="bingo-letter text-6xl font-black" id="L0">B</span>
+            <span class="bingo-letter text-6xl font-black" id="L1">I</span>
+            <span class="bingo-letter text-6xl font-black" id="L2">N</span>
+            <span class="bingo-letter text-6xl font-black" id="L3">G</span>
+            <span class="bingo-letter text-6xl font-black" id="L4">O</span>
+        </div>
+
+        <div class="text-center mb-8">
+            <h2 id="game-player-name" class="text-4xl font-black uppercase tracking-tighter text-white">Player</h2>
+        </div>
+
+        <div id="play-area" class="p-3 rounded-2xl border-4 border-white">
+            <div id="game-grid" class="grid grid-cols-5 gap-3"></div>
+        </div>
+        <p class="text-center text-white mt-10 text-sm font-black uppercase tracking-[0.4em]">Tap to call</p>
+    </div>
+
+    <!-- RESULTS SCREEN -->
+    <div id="results-screen" class="hidden w-full max-w-4xl flex flex-col items-center mt-2">
+        <div class="text-center mb-14">
+            <h1 id="winner-banner" class="text-7xl font-black text-white uppercase tracking-tighter mb-4">WINNER</h1>
+            <p id="tie-subtitle" class="text-white font-black uppercase tracking-[0.5em] text-sm">Full Match Results</p>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-12 w-full mb-20">
+            <div class="flex flex-col items-center">
+                <h3 id="res-name-0" class="text-white text-lg font-black mb-6 uppercase tracking-[0.3em]">Player 1</h3>
+                <div id="final-grid-0" class="grid grid-cols-5 gap-2 p-3 border-4 border-white rounded-2xl w-full max-w-[340px]"></div>
+            </div>
+
+            <div class="flex flex-col items-center">
+                <h3 id="res-name-1" class="text-white text-lg font-black mb-6 uppercase tracking-[0.3em]">Player 2</h3>
+                <div id="final-grid-1" class="grid grid-cols-5 gap-2 p-3 border-4 border-white rounded-2xl w-full max-w-[340px]"></div>
+            </div>
+        </div>
+
+        <button onclick="location.reload()" class="w-full max-w-sm py-6 bg-white text-black font-black rounded-3xl text-2xl hover:bg-gray-200 transition active:scale-95 mb-14">
+            RESTART
+        </button>
+    </div>
+
+    <script>
+        let gameState = {
+            phase: 'REGISTRATION',
+            playerNames: ["PLAYER 1", "PLAYER 2"],
+            grids: [Array(25).fill(null), Array(25).fill(null)],
+            setupCounter: 1,
+            markedNumbers: new Set(),
+            turn: 0
+        };
+
+        function startRegistration() {
+            const p1 = document.getElementById('p1-name-input').value.trim().toUpperCase();
+            const p2 = document.getElementById('p2-name-input').value.trim().toUpperCase();
+            
+            if (p1) gameState.playerNames[0] = p1;
+            if (p2) gameState.playerNames[1] = p2;
+
+            document.getElementById('registration-screen').classList.add('hidden');
+            document.getElementById('setup-screen').classList.remove('hidden');
+            gameState.phase = 'SETUP_P1';
+            updateSetupTitle();
+            renderSetupGrid();
+        }
+
+        function updateSetupTitle() {
+            const name = gameState.phase === 'SETUP_P1' ? gameState.playerNames[0] : gameState.playerNames[1];
+            document.getElementById('setup-title').textContent = name;
+        }
+
+        function renderSetupGrid() {
+            const container = document.getElementById('setup-grid');
+            container.innerHTML = '';
+            const activeGrid = gameState.phase === 'SETUP_P1' ? gameState.grids[0] : gameState.grids[1];
+
+            activeGrid.forEach((val, idx) => {
+                const cell = document.createElement('button');
+                cell.className = `bingo-cell rounded-xl flex items-center justify-center font-black text-3xl transition-all ${val ? 'setup-cell-placed' : ''}`;
+                cell.textContent = val || '';
+                cell.onclick = () => {
+                    if (!activeGrid[idx] && gameState.setupCounter <= 25) {
+                        activeGrid[idx] = gameState.setupCounter++;
+                        renderSetupGrid();
+                    }
+                };
+                container.appendChild(cell);
+            });
+
+            const confirmBtn = document.getElementById('confirm-setup-btn');
+            const isFull = activeGrid.every(v => v !== null);
+            confirmBtn.disabled = !isFull;
+            confirmBtn.textContent = isFull ? "CONFIRM" : `COUNT: ${gameState.setupCounter - 1}`;
+        }
+
+        function resetSetup() {
+            const gridIdx = gameState.phase === 'SETUP_P1' ? 0 : 1;
+            gameState.grids[gridIdx] = Array(25).fill(null);
+            gameState.setupCounter = 1;
+            renderSetupGrid();
+        }
+
+        function confirmGrid() {
+            if (gameState.phase === 'SETUP_P1') {
+                gameState.phase = 'SETUP_P2';
+                gameState.setupCounter = 1;
+                showTransition(`PASS TO ${gameState.playerNames[1]}`, "THEIR TURN TO SETUP.");
+            } else {
+                gameState.phase = 'PLAY';
+                showTransition("BINGO START", `${gameState.playerNames[0]} GOES FIRST.`);
+            }
+        }
+
+        function showTransition(title, desc) {
+            document.getElementById('transition-screen').classList.remove('hidden');
+            document.getElementById('transition-title').textContent = title;
+            document.getElementById('transition-desc').textContent = desc;
+        }
+
+        function proceedFromTransition() {
+            document.getElementById('transition-screen').classList.add('hidden');
+            if (gameState.phase === 'SETUP_P2') {
+                updateSetupTitle();
+                renderSetupGrid();
+            } else {
+                document.getElementById('setup-screen').classList.add('hidden');
+                document.getElementById('game-screen').classList.remove('hidden');
+                renderGameBoard();
+            }
+        }
+
+        function renderGameBoard() {
+            const gridEl = document.getElementById('game-grid');
+            const nameEl = document.getElementById('game-player-name');
+            const p = gameState.turn;
+            const currentGrid = gameState.grids[p];
+
+            nameEl.textContent = gameState.playerNames[p];
+
+            gridEl.innerHTML = '';
+            currentGrid.forEach(num => {
+                const cell = document.createElement('button');
+                const isMarked = gameState.markedNumbers.has(num);
+                cell.className = `bingo-cell rounded-2xl flex items-center justify-center font-black text-3xl transition-all ${isMarked ? 'marked' : 'hover:border-white'}`;
+                cell.textContent = num;
+                cell.onclick = () => callNumber(num);
+                gridEl.appendChild(cell);
+            });
+
+            const lineCount = countLines(p);
+            for (let i = 0; i < 5; i++) {
+                document.getElementById(`L${i}`).className = `bingo-letter text-6xl font-black ${i < lineCount ? 'active' : ''}`;
+            }
+        }
+
+        function callNumber(num) {
+            if (gameState.markedNumbers.has(num)) return;
+            gameState.markedNumbers.add(num);
+
+            const p1Lines = countLines(0);
+            const p2Lines = countLines(1);
+
+            if (p1Lines >= 5 || p2Lines >= 5) {
+                document.body.classList.add('win-animate');
+                setTimeout(() => {
+                    if (p1Lines >= 5 && p2Lines >= 5) showResults('TIE');
+                    else if (p1Lines >= 5) showResults(0);
+                    else showResults(1);
+                }, 600);
+                return;
+            }
+
+            const prevCaller = gameState.playerNames[gameState.turn];
+            gameState.turn = gameState.turn === 0 ? 1 : 0;
+            const nextPlayer = gameState.playerNames[gameState.turn];
+
+            renderGameBoard(); 
+            showTransition(`${nextPlayer}'S TURN`, `${prevCaller} CALLED ${num}.`);
+        }
+
+        function countLines(playerIndex) {
+            const grid = gameState.grids[playerIndex];
+            const marks = gameState.markedNumbers;
+            let lines = 0;
+            const isM = (idx) => marks.has(grid[idx]);
+
+            for (let i = 0; i < 5; i++) {
+                if ([0,1,2,3,4].every(j => isM(i*5 + j))) lines++;
+                if ([0,1,2,3,4].every(j => isM(i + j*5))) lines++;
+            }
+            if ([0,6,12,18,24].every(i => isM(i))) lines++;
+            if ([4,8,12,16,20].every(i => isM(i))) lines++;
+            return lines;
+        }
+
+        function showResults(result) {
+            document.getElementById('game-screen').classList.add('hidden');
+            document.getElementById('results-screen').classList.remove('hidden');
+            
+            const banner = document.getElementById('winner-banner');
+            const sub = document.getElementById('tie-subtitle');
+            
+            document.getElementById('res-name-0').textContent = gameState.playerNames[0];
+            document.getElementById('res-name-1').textContent = gameState.playerNames[1];
+
+            if (result === 'TIE') {
+                banner.textContent = "BOTH WON!";
+                sub.textContent = "IT'S A TIE";
+            } else {
+                banner.textContent = `${gameState.playerNames[result]} WINS`;
+                sub.textContent = "BINGO COMPLETE";
+            }
+
+            renderFinalGrid(0);
+            renderFinalGrid(1);
+        }
+
+        function renderFinalGrid(pIdx) {
+            const container = document.getElementById(`final-grid-${pIdx}`);
+            container.innerHTML = '';
+            const grid = gameState.grids[pIdx];
+            
+            grid.forEach(num => {
+                const cell = document.createElement('div');
+                const isMarked = gameState.markedNumbers.has(num);
+                cell.className = `aspect-square border-2 border-white rounded-lg flex items-center justify-center font-black text-base ${isMarked ? 'bg-white text-black' : 'text-white opacity-20'}`;
+                cell.textContent = num;
+                container.appendChild(cell);
+            });
+        }
+    </script>
+</body>
+</html>
+
